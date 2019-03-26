@@ -3,6 +3,8 @@ package com.getbase.jenkins.plugins.metrics.history.influxdb.generators;
 import com.synopsys.arc.jenkins.plugins.ownership.jobs.JobOwnerJobAction;
 import hudson.model.Result;
 import hudson.model.Run;
+import hudson.model.ParametersAction;
+import hudson.model.ParameterValue;
 import jenkins.metrics.impl.TimeInQueueAction;
 import org.influxdb.dto.Point;
 
@@ -21,6 +23,8 @@ public class JenkinsBasePointGenerator implements PointGenerator {
     private static final String JOB_SCORE = "job_score";
     private static final String BUILD_URL = "build_url";
     private static final String JOB_URL = "job_url";
+    private static final String JOB_BRANCH = "job_branch";
+    private static final String JOB_DOMAIN = "job_domain";
 
     private final Run<?, ?> build;
 
@@ -34,6 +38,10 @@ public class JenkinsBasePointGenerator implements PointGenerator {
         long currTime = System.currentTimeMillis();
         long dt = currTime - startTime;
         long duration = build.getDuration() == 0 ? dt : build.getDuration();
+
+        ParametersAction params = build.getAction(ParametersAction.class);
+        ParameterValue branch = params.getParameter("branch");
+        ParameterValue domain = params.getParameter("domain");
 
         TimeInQueueAction action = build.getAction(TimeInQueueAction.class);
         String owner = build.getParent().getAction(JobOwnerJobAction.class).getOwnership().getPrimaryOwnerEmail();
@@ -63,7 +71,14 @@ public class JenkinsBasePointGenerator implements PointGenerator {
                 .addField(TOTAL_DURATION, duration + action.getQueuingDurationMillis())
                 .addField(BUILD_STATUS_MESSAGE, build.getBuildStatusSummary().message);
 
-        return new Point[]{point.build()};
+                if (branch != null) {
+                    point.addField(JOB_BRANCH, branch.getValue().toString());
+                }
+                if (domain != null) {
+                    point.addField(JOB_DOMAIN, domain.getValue().toString());
+                }
+
+        return new Point[] {point.build()};
     }
 
 
