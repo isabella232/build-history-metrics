@@ -1,10 +1,14 @@
 package com.getbase.jenkins.plugins.metrics.history.influxdb.generators;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import com.synopsys.arc.jenkins.plugins.ownership.jobs.JobOwnerJobAction;
+import hudson.model.ParameterValue;
+import hudson.model.ParametersAction;
 import hudson.model.Result;
 import hudson.model.Run;
-import hudson.model.ParametersAction;
-import hudson.model.ParameterValue;
 import jenkins.metrics.impl.TimeInQueueAction;
 import org.influxdb.dto.Point;
 
@@ -32,16 +36,31 @@ public class JenkinsBasePointGenerator implements PointGenerator {
         this.build = build;
     }
 
+    public static Map<String, Object> getBuildParameters(Run build) {
+        List<ParametersAction> actions = build.getActions(ParametersAction.class);
+        if (actions != null) {
+            Map<String, Object> parametersMap = new HashMap<>();
+            for (ParametersAction action : actions) {
+                List<ParameterValue> parameters = action.getParameters();
+                if (parameters != null) {
+                    for (ParameterValue parameter : parameters) {
+                        String name = parameter.getName();
+                        Object value = parameter.getValue();
+                        parametersMap.put(name, value);
+                    }
+                }
+            }
+            return parametersMap;
+        }
+        return null;
+    }
+
     public Point[] generate() {
         // Build is not finished when running with pipelines. Duration must be calculated manually
         long startTime = build.getTimeInMillis();
         long currTime = System.currentTimeMillis();
         long dt = currTime - startTime;
         long duration = build.getDuration() == 0 ? dt : build.getDuration();
-
-        ParametersAction params = build.getAction(ParametersAction.class);
-        ParameterValue branch = params.getParameter("branch");
-        ParameterValue domain = params.getParameter("domain");
 
         TimeInQueueAction action = build.getAction(TimeInQueueAction.class);
         String owner = build.getParent().getAction(JobOwnerJobAction.class).getOwnership().getPrimaryOwnerEmail();
@@ -51,6 +70,7 @@ public class JenkinsBasePointGenerator implements PointGenerator {
         final Integer resultInt = resultStr.equals("SUCCESS") ? 1 : 0;
         final String jobAbsoluteURL = build.getParent().getAbsoluteUrl();
         final String buildAbsoluteURL = jobAbsoluteURL + build.getNumber();
+        final Map<String, Object> fields = getBuildParameters(build);
 
         Point.Builder point = Point
                 .measurement(MEASUREMENT_NAME)
@@ -69,14 +89,8 @@ public class JenkinsBasePointGenerator implements PointGenerator {
                 .addField(BUILD_DURATION, duration)
                 .addField(QUEUING_DURATION, action.getQueuingDurationMillis())
                 .addField(TOTAL_DURATION, duration + action.getQueuingDurationMillis())
-                .addField(BUILD_STATUS_MESSAGE, build.getBuildStatusSummary().message);
-
-                if (branch != null) {
-                    point.addField(JOB_BRANCH, branch.getValue().toString());
-                }
-                if (domain != null) {
-                    point.addField(JOB_DOMAIN, domain.getValue().toString());
-                }
+                .addField(BUILD_STATUS_MESSAGE, build.getBuildStatusSummary().message)
+                .fields(fields);
 
         return new Point[] {point.build()};
     }
