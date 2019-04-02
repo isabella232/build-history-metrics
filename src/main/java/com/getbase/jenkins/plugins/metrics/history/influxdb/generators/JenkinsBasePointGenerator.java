@@ -1,6 +1,12 @@
 package com.getbase.jenkins.plugins.metrics.history.influxdb.generators;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import com.synopsys.arc.jenkins.plugins.ownership.jobs.JobOwnerJobAction;
+import hudson.model.ParameterValue;
+import hudson.model.ParametersAction;
 import hudson.model.Result;
 import hudson.model.Run;
 import jenkins.metrics.impl.TimeInQueueAction;
@@ -28,6 +34,25 @@ public class JenkinsBasePointGenerator implements PointGenerator {
         this.build = build;
     }
 
+    public Map<String, Object> getBuildParameters(Run build) {
+        List<ParametersAction> actions = build.getActions(ParametersAction.class);
+        if (actions != null) {
+            Map<String, Object> parametersMap = new HashMap<>();
+            for (ParametersAction action : actions) {
+                List<ParameterValue> parameters = action.getParameters();
+                if (parameters != null) {
+                    for (ParameterValue parameter : parameters) {
+                        String name = parameter.getName();
+                        Object value = parameter.getValue();
+                        parametersMap.put(name, value);
+                    }
+                }
+            }
+            return parametersMap;
+        }
+        return null;
+    }
+
     public Point[] generate() {
         // Build is not finished when running with pipelines. Duration must be calculated manually
         long startTime = build.getTimeInMillis();
@@ -43,6 +68,8 @@ public class JenkinsBasePointGenerator implements PointGenerator {
         final Integer resultInt = resultStr.equals("SUCCESS") ? 1 : 0;
         final String jobAbsoluteURL = build.getParent().getAbsoluteUrl();
         final String buildAbsoluteURL = jobAbsoluteURL + build.getNumber();
+        final Run.Summary buildSummary = build.getBuildStatusSummary();
+        final Map<String, Object> buildParameters = getBuildParameters(build);
 
         Point.Builder point = Point
                 .measurement(MEASUREMENT_NAME)
@@ -61,10 +88,11 @@ public class JenkinsBasePointGenerator implements PointGenerator {
                 .addField(BUILD_DURATION, duration)
                 .addField(QUEUING_DURATION, action.getQueuingDurationMillis())
                 .addField(TOTAL_DURATION, duration + action.getQueuingDurationMillis())
-                .addField(BUILD_STATUS_MESSAGE, build.getBuildStatusSummary().message);
+                .fields(buildParameters);
 
-        return new Point[]{point.build()};
+        if (buildSummary != null) {
+            point.addField(BUILD_STATUS_MESSAGE, buildSummary.message);
+        }
+        return new Point[] {point.build()};
     }
-
-
 }
