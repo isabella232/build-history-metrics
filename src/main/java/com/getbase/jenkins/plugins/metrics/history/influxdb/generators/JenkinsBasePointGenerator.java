@@ -34,7 +34,7 @@ public class JenkinsBasePointGenerator implements PointGenerator {
         this.build = build;
     }
 
-    public static Map<String, Object> getBuildParameters(Run build) {
+    public Map<String, Object> getBuildParameters(Run build) {
         List<ParametersAction> actions = build.getActions(ParametersAction.class);
         if (actions != null) {
             Map<String, Object> parametersMap = new HashMap<>();
@@ -68,6 +68,7 @@ public class JenkinsBasePointGenerator implements PointGenerator {
         final Integer resultInt = resultStr.equals("SUCCESS") ? 1 : 0;
         final String jobAbsoluteURL = build.getParent().getAbsoluteUrl();
         final String buildAbsoluteURL = jobAbsoluteURL + build.getNumber();
+        final Run.Summary buildSummary = build.getBuildStatusSummary();
         final Map<String, Object> buildParameters = getBuildParameters(build);
 
         Point.Builder point = Point
@@ -87,11 +88,11 @@ public class JenkinsBasePointGenerator implements PointGenerator {
                 .addField(BUILD_DURATION, duration)
                 .addField(QUEUING_DURATION, action.getQueuingDurationMillis())
                 .addField(TOTAL_DURATION, duration + action.getQueuingDurationMillis())
-                .addField(BUILD_STATUS_MESSAGE, build.getBuildStatusSummary().message)
                 .fields(buildParameters);
 
+        if (buildSummary != null) {
+            point.addField(BUILD_STATUS_MESSAGE, buildSummary.message);
+        }
         return new Point[] {point.build()};
     }
-
-
 }
