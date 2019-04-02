@@ -27,8 +27,6 @@ public class JenkinsBasePointGenerator implements PointGenerator {
     private static final String JOB_SCORE = "job_score";
     private static final String BUILD_URL = "build_url";
     private static final String JOB_URL = "job_url";
-    private static final String JOB_BRANCH = "job_branch";
-    private static final String JOB_DOMAIN = "job_domain";
 
     private final Run<?, ?> build;
 
